@@ -6,6 +6,8 @@ DOMAIN: http://goflap.io
 
 EXPLORER: http://explorer.goflap.io
 
+BOOTSTRAP.DAT: http://www.goflap.io/download/bootstrap.zip
+
 
 ![FlappyCoin](http://goflap.io/FlappyCoin_files/flapcoin_med.png)
 
