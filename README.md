@@ -7,6 +7,9 @@ DOMAIN: http://goflap.io
 EXPLORER: http://explorer.goflap.io
 
 BOOTSTRAP.DAT: http://www.goflap.io/download/bootstrap.zip
+Bootstrap Checksum:
+MD5: 439721303386E3B289C2E652ADFD02A8
+SHA-1: C64F67D2CDA8D616A434251FBE6743E707F25673
 
 
 ![FlappyCoin](http://goflap.io/FlappyCoin_files/flapcoin_med.png)
