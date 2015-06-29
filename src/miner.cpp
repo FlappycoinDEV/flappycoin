@@ -157,12 +157,14 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
 
         if (nSearchTime > nLastCoinStakeSearchTime)
         {
-            // printf(">>> OK1\n");
+            //printf(">>> creating coinstake... \n");
             if (pwalletMain->CreateCoinStake(*pwalletMain, pblock->nBits, nSearchTime-nLastCoinStakeSearchTime, txCoinStake))
             {
+               // printf("created coinstake. value out %llu. to string: %s \n",txCoinStake.GetValueOut(), txCoinStake.ToString().c_str());
                 if (txCoinStake.nTime >= max(pindexPrev->GetMedianTimePast()+1, pindexPrev->GetBlockTime() - (2 * 60 * 60)))
                 {   // make sure coinstake would meet timestamp protocol
                     // as it would be the same as the block timestamp
+                   // printf("setting up block vtx... \n");
                     pblock->vtx[0].vout[0].SetEmpty();
                     pblock->vtx[0].nTime = txCoinStake.nTime;
                     pblock->vtx.push_back(txCoinStake);
@@ -360,7 +362,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
 
         nLastBlockTx = nBlockTx;
         nLastBlockSize = nBlockSize;
-        printf("CreateNewBlock(): total size %"PRI64u"\n", nBlockSize);
 
         if (pblock->IsProofOfWork())
         {
@@ -380,6 +381,11 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
         indexDummy.nHeight = pindexPrev->nHeight + 1;
         CCoinsViewCache viewNew(*pcoinsTip, true);
         CValidationState state;
+        if(pblock->IsProofOfStake() == false && fProofOfStake == true)
+        {
+            return NULL;
+        }
+        printf("CreateNewBlock(): total size %"PRI64u"\n", nBlockSize);
         if (!pblock->ConnectBlock(state, &indexDummy, viewNew, true))
             throw std::runtime_error("CreateNewBlock() : ConnectBlock failed");
     }
@@ -463,15 +469,18 @@ void FormatHashBuffers(CBlock* pblock, char* pmidstate, char* pdata, char* phash
 
 bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
 {
-    uint256 hash = pblock->GetPoWHash();
+    uint256 hash = pblock->GetHash();
     uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
 
-    if (hash > hashTarget)
+    if (hash > hashTarget  && pblock->IsProofOfWork())
+    {
+        printf("Hash did not meet hash target: \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
         return false;
+    }
 
     //// debug print
     printf("FlappycoinMiner:\n");
-    printf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
+    printf("block found:  \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
     pblock->print();
     printf("generated %s\n", FormatMoney(pblock->vtx[0].vout[0].nValue).c_str());
 
@@ -509,9 +518,16 @@ void static FlappycoinMiner(CWallet *pwallet)
     CReserveKey reservekey(pwallet);
     unsigned int nExtraNonce = 0;
 
+    start:
     try {
         while(true)
         {
+            retry:
+            if(IsInitialBlockDownload())
+            {
+                sleep(1000);
+                goto retry;
+            }
             bool fProofOfStake = false;
             if((pindexBest->nHeight + 1) >= CUTOFF_HEIGHT)
             {
@@ -532,26 +548,34 @@ void static FlappycoinMiner(CWallet *pwallet)
 
             auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(reservekey, fProofOfStake));
             if (!pblocktemplate.get())
-                return;
+                goto retry;
             CBlock *pblock = &pblocktemplate->block;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
             if (fProofOfStake)
             {
+                printf("Mining PoS Blocks... \n");
                 // ppcoin: if proof-of-stake block found then process block
                 if (pblock->IsProofOfStake())
                 {
+                    printf("Block is PoS, attempting to sign the scrypt block... \n");
                     if (!pblock->SignScryptBlock(*pwalletMain))
                     {
                         continue;
                     }
                     printf("CPUMiner : proof-of-stake block found %s\n", pblock->GetHash().ToString().c_str());
                     SetThreadPriority(THREAD_PRIORITY_NORMAL);
-                    CheckWork(pblock, *pwalletMain, reservekey);
-                    SetThreadPriority(THREAD_PRIORITY_LOWEST);
+                    if(CheckWork(pblock, *pwalletMain, reservekey))
+                    {
+                        printf("CheckWork passed and block submitted...\n");
+                    }
+                    SetThreadPriority(THREAD_PRIORITY_NORMAL);
+                }
+                else
+                {
+                    goto start;
                 }
                 sleep(1000); // 1 second delay
-                continue;
             }
 
             printf("Running FlappycoinMiner with %"PRIszu" transactions in block (%u bytes)\n", pblock->vtx.size(),
@@ -580,53 +604,56 @@ void static FlappycoinMiner(CWallet *pwallet)
             unsigned int max_nonce = 0xffff0000;
             uint256 result;
 
-            loop
+            if(fProofOfStake == false)
             {
-                unsigned int nHashesDone = 0;
-                uint256 thash;
+                loop
+                {
+                    unsigned int nHashesDone = 0;
+                    uint256 thash;
 
-                char scratchpad[SCRYPT_SCRATCHPAD_SIZE];
-                while(true)
-                {
-                    scrypt_1024_1_1_256_sp(BEGIN(pblock->nVersion), BEGIN(thash), scratchpad);
+                    char scratchpad[SCRYPT_SCRATCHPAD_SIZE];
+                    while(true)
+                    {
+                        scrypt_1024_1_1_256_sp(BEGIN(pblock->nVersion), BEGIN(thash), scratchpad);
 
-                    if (thash <= hashTarget)
-                    {
-                        // Found a solution
-                        SetThreadPriority(THREAD_PRIORITY_NORMAL);
-                        CheckWork(pblock, *pwallet, reservekey);
-                        SetThreadPriority(THREAD_PRIORITY_LOWEST);
-                        break;
-                    }
-                    pblock->nNonce += 1;
-                    nHashesDone += 1;
-                    if ((pblock->nNonce & 0xFF) == 0)
-                        break;
-                }
-                // Meter hashes/sec
-                static int64 nHashCounter;
-                if (nHPSTimerStart == 0)
-                {
-                    nHPSTimerStart = GetTimeMillis();
-                    nHashCounter = 0;
-                }
-                else
-                    nHashCounter += nHashesDone;
-                if (GetTimeMillis() - nHPSTimerStart > 4000)
-                {
-                    static CCriticalSection cs;
-                    {
-                        LOCK(cs);
-                        if (GetTimeMillis() - nHPSTimerStart > 4000)
+                        if (thash <= hashTarget)
                         {
-                            dHashesPerSec = 1000.0 * nHashCounter / (GetTimeMillis() - nHPSTimerStart);
-                            nHPSTimerStart = GetTimeMillis();
-                            nHashCounter = 0;
-                            static int64 nLogTime;
-                            if (GetTime() - nLogTime > 30 * 60)
+                            // Found a solution
+                            SetThreadPriority(THREAD_PRIORITY_NORMAL);
+                            CheckWork(pblock, *pwallet, reservekey);
+                            SetThreadPriority(THREAD_PRIORITY_LOWEST);
+                            break;
+                        }
+                        pblock->nNonce += 1;
+                        nHashesDone += 1;
+                        if ((pblock->nNonce & 0xFF) == 0)
+                            break;
+                    }
+                    // Meter hashes/sec
+                    static int64 nHashCounter;
+                    if (nHPSTimerStart == 0)
+                    {
+                        nHPSTimerStart = GetTimeMillis();
+                        nHashCounter = 0;
+                    }
+                    else
+                        nHashCounter += nHashesDone;
+                    if (GetTimeMillis() - nHPSTimerStart > 4000)
+                    {
+                        static CCriticalSection cs;
+                        {
+                            LOCK(cs);
+                            if (GetTimeMillis() - nHPSTimerStart > 4000)
                             {
-                                nLogTime = GetTime();
-                                printf("hashmeter %6.0f khash/s\n", dHashesPerSec/1000.0);
+                                dHashesPerSec = 1000.0 * nHashCounter / (GetTimeMillis() - nHPSTimerStart);
+                                nHPSTimerStart = GetTimeMillis();
+                                nHashCounter = 0;
+                                static int64 nLogTime;
+                                if (GetTime() - nLogTime > 30 * 60)
+                                {
+                                    nLogTime = GetTime();
+                                    printf("hashmeter %6.0f khash/s\n", dHashesPerSec/1000.0);
+                                }
                             }
                         }
                     }
@@ -642,11 +669,9 @@ void static FlappycoinMiner(CWallet *pwallet)
                     break;
                 if (pindexPrev != pindexBest)
                     break;
-
                 // Update nTime every few seconds
                 pblock->UpdateTime(pindexPrev);
                 nBlockTime = ByteReverse(pblock->nTime);
-
                 if (pblock->GetBlockTime() >= (int64_t)pblock->vtx[0].nTime + (2 * 60 * 60))
                     break;  // need to update coinbase timestamp
                 if (fTestNet)
@@ -669,7 +694,7 @@ void GenerateBitcoins(bool fGenerate, CWallet* pwallet)
 {
     static boost::thread_group* minerThreads = NULL;
 
-    int nThreads = GetArg("-genproclimit", -1);
+    int nThreads = GetArg("-genproclimit", 1);
     if (nThreads < 0)
         nThreads = boost::thread::hardware_concurrency();
 

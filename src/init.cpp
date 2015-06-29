@@ -1127,7 +1127,7 @@ bool AppInit2(boost::thread_group& threadGroup)
 
     // Generate coins in the background
     if (pwalletMain)
-        GenerateBitcoins(GetBoolArg("-gen", false), pwalletMain);
+        GenerateBitcoins(GetBoolArg("-gen", true), pwalletMain);
 
     // ********************************************************* Step 12: finished
 

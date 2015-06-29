@@ -2123,7 +2123,8 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
             return state.Abort(_("Failed to read block"));
         int64 nStart = GetTimeMicros();
         if (!block.ConnectBlock(state, pindex, view)) {
-            if (state.IsInvalid()) {
+            if (state.IsInvalid())
+            {
                 InvalidChainFound(pindexNew);
                 InvalidBlockFound(pindex);
             }
@@ -2432,9 +2433,11 @@ bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerk
     }
 
     // Check proof of work matches claimed amount
-    if (fCheckPOW && IsProofOfWork() && !CheckProofOfWork(GetPoWHash(), nBits))
+    if (this->IsProofOfWork())
+    {
+        if (fCheckPOW && !CheckProofOfWork(GetPoWHash(), nBits))
         return state.DoS(50, error("CheckBlock() : proof of work failed"));
-
+    }
     // Check timestamp
     if (GetBlockTime() > GetAdjustedTime() + 2 * 60 * 60)
         return state.Invalid(error("CheckBlock() : block timestamp too far in the future"));
@@ -2456,8 +2459,8 @@ bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerk
         return error("CheckBlock() : coinbase output not empty for proof-of-stake block");
 
     // Check coinstake timestamp
-    if (IsProofOfStake() && !CheckCoinStakeTimestamp(GetBlockTime(), (int64)vtx[1].nTime))
-        return state.DoS(50, error("CheckBlock() : coinstake timestamp violation nTimeBlock=%"PRI64d" nTimeTx=%u", GetBlockTime(), vtx[1].nTime));
+    //if (IsProofOfStake() && !CheckCoinStakeTimestamp(GetBlockTime(), (int64)vtx[1].nTime))
+    //    return state.DoS(50, error("CheckBlock() : coinstake timestamp violation nTimeBlock=%"PRI64d" nTimeTx=%u", GetBlockTime(), vtx[1].nTime));
 
 
 
@@ -2499,8 +2502,8 @@ bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerk
         return state.DoS(100, error("CheckBlock() : hashMerkleRoot mismatch"));
 
     // ppcoin: check block signature
-    if (!CheckBlockSignature())
-        return state.DoS(100, error("CheckBlock() : bad block signature"));
+    //if (!CheckBlockSignature())
+    //    return state.DoS(100, error("CheckBlock() : bad block signature"));
 
     return true;
 }

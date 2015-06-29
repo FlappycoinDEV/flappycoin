@@ -1516,7 +1516,7 @@ public:
         }
 
         // Check the header
-        if (!CheckProofOfWork(GetPoWHash(), nBits))
+        if (this->IsProofOfWork() && !CheckProofOfWork(GetPoWHash(), nBits))
             return error("CBlock::ReadFromDisk() : errors in block header");
 
         return true;

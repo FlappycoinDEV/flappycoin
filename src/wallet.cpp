@@ -1375,20 +1375,23 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     // Choose coins to use
     int64 nBalance = GetBalance();
     int64 nReserveBalance = 0;
-    if (mapArgs.count("-reservebalance") && !ParseMoney(mapArgs["-reservebalance"], nReserveBalance))
-        return error("CreateCoinStake : invalid reserve balance amount");
-    if (nBalance <= nReserveBalance)
-        return false;
 
     set<pair<const CWalletTx*,unsigned int> > setCoins;
     vector<const CWalletTx*> vwtxPrev;
     int64 nValueIn = 0;
     if (!SelectCoins(nBalance - nReserveBalance, txNew.nTime, setCoins, nValueIn))
+    {
+        //printf("select coins failed");
         return false;
+    }
 
     if (setCoins.empty())
+    {
+        //printf("setcoins was empty \n");
         return false;
+    }
 
+    printf("setCoins size = %i \n", (int)setCoins.size());
     int64 nCredit = 0;
     CScript scriptPubKeyKernel;
     BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
@@ -1452,6 +1455,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
                 txNew.nTime -= n;
                 txNew.vin.push_back(CTxIn(pcoin.first->GetHash(), pcoin.second));
                 nCredit += pcoin.first->vout[pcoin.second].nValue;
+                printf("nCredit = %i \n", (int)nCredit);
                 vwtxPrev.push_back(pcoin.first);
                 txNew.vout.push_back(CTxOut(0, scriptPubKeyOut));
                 if (pcoin.first->GetTxTime() + nStakeSplitAge > txNew.nTime)
@@ -1469,7 +1473,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     }
     if (nCredit == 0 || nCredit > nBalance - nReserveBalance)
     {
-        //printf(">> Wallet: CreateCoinStake: nCredit = %"PRId64", nBalance = %"PRId64", nReserveBalance = %"PRId64"\n", nCredit, nBalance, nReserveBalance);
+        //printf(">> Wallet: CreateCoinStake: nCredit = %"PRI64d", nBalance = %"PRI64d", nReserveBalance = %"PRI64d" ... returning false\n", nCredit, nBalance, nReserveBalance);
         return false;
     }
 
@@ -1527,7 +1531,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
         nCoinAge = bnCoinDay.getuint();
         const CBlockIndex* pIndex0 = GetLastBlockIndex(pindexBest, false);
         int64 nCreditReward = GetProofOfStakeReward(nCoinAge, nBits ,pIndex0->nHeight);
-        printf("nCreditReward create=%i \n", nCreditReward);
+        //printf("nCreditReward create=%i \n", nCreditReward);
         nCredit = nCredit + nCreditReward;
     }
 
@@ -1570,7 +1574,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
         }
     }
 
-    // Successfully generated coinstake
+    //printf("Successfully generated coinstake \n");
     return true;
 }
 

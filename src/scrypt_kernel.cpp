@@ -14,7 +14,7 @@
 //#include "scrypt_mine.h"
 
 using namespace std;
-
+unsigned int modifier = 1000000;
 extern int nBestHeight;
 extern int nStakeMaxAge;
 extern const int64 nStakeTargetSpacing;
@@ -69,7 +69,7 @@ bool ComputeNextStakeModifier(const CBlockIndex* pindexPrev, uint64& nStakeModif
     }
     else
     {
-        printf("modifierLast = %i \n", modifierLast->nHeight);
+        //printf("modifierLast = %i \n", modifierLast->nHeight);
         if (fDebug)
             printf("ComputeNextStakeModifier: prev modifier=0x%016"PRI64x" time=%s\n", nStakeModifier, DateTimeStrFormat(modifierLast->GetBlockTime()).c_str());
         if (pindexPrev->GetBlockTime() < modifierLast->GetBlockTime() + nModifierInterval)
@@ -163,25 +163,26 @@ static bool GetKernelStakeModifier(uint256 hashBlockFrom, uint64& nStakeModifier
     const CBlockIndex* pindex = pindexFrom;
 
     // loop to find the stake modifier later by a selection interval
-    while (nStakeModifierTime < pindexFrom->GetBlockTime() + nStakeModifierSelectionInterval)
+    while (true)
     {
-        if (!pindex->pnext)
+        if (!pindex->pprev)
         {   // reached best block; may happen if node is behind on block chain
-            if (fPrintProofOfStake || (pindex->GetBlockTime() + nStakeMinAge - nStakeModifierSelectionInterval > GetAdjustedTime()))
+            if (fPrintProofOfStake || ((pindex->GetBlockTime() + (nStakeMinAge - nStakeModifierSelectionInterval)) > GetAdjustedTime()))
                 return error("GetKernelStakeModifier() : reached best block %s at height %d from block %s",
                     pindex->GetBlockHash().ToString().c_str(), pindex->nHeight, hashBlockFrom.ToString().c_str());
             else
             {
-                // printf(">> nStakeModifierTime = %"PRI64d", pindexFrom->GetBlockTime() = %"PRI64d", nStakeModifierSelectionInterval = %"PRI64d"\n",
-                // 	nStakeModifierTime, pindexFrom->GetBlockTime(), nStakeModifierSelectionInterval);
+                 //printf(">> nStakeModifierTime = %"PRI64d", pindexFrom->GetBlockTime() = %"PRI64d", nStakeModifierSelectionInterval = %"PRI64d"  returning false...\n",
+                 //   nStakeModifierTime, pindexFrom->GetBlockTime(), nStakeModifierSelectionInterval);
                 return false;
             }
         }
-        pindex = pindex->pnext;
+        pindex = pindex->pprev;
         if (pindex->GeneratedStakeModifier())
         {
             nStakeModifierHeight = pindex->nHeight;
             nStakeModifierTime = pindex->GetBlockTime();
+            break;
         }
     }
     nStakeModifier = pindex->nStakeModifier;
@@ -215,12 +216,16 @@ bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, 
 {
     unsigned int txPrevTime = blockFromTime;
     if (nTimeTx < txPrevTime)  // Transaction timestamp violation
+    {
+        printf("nTime violation \n");
         return error("CheckStakeKernelHash() : nTime violation");
-
+    }
     unsigned int nTimeBlockFrom = blockFromTime;
     if (nTimeBlockFrom + nStakeMinAge > nTimeTx) // Min age requirement
+    {
+        printf("min age violation \n");
         return error("CheckStakeKernelHash() : min age violation");
-
+    }
     CBigNum bnTargetPerCoinDay;
     bnTargetPerCoinDay.SetCompact(nBits);
     int64 nValueIn = txPrev.vout[prevout.n].nValue;
@@ -231,7 +236,7 @@ bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, 
     int64 nTimeWeight = min((int64)nTimeTx - txPrevTime, (int64)nStakeMaxAge) - nStakeMinAge;
     CBigNum bnCoinDayWeight = CBigNum(nValueIn) * nTimeWeight / COIN / (24 * 60 * 60);
 
-    // printf(">>> CheckStakeKernelHash: nTimeWeight = %"PRI64d"\n", nTimeWeight);
+    //printf(">>> CheckStakeKernelHash: nTimeWeight = %"PRI64d"\n", nTimeWeight);
     // Calculate hash
     CDataStream ss(SER_GETHASH, 0);
     uint64 nStakeModifier = 0;
@@ -240,10 +245,10 @@ bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, 
 
     if (!GetKernelStakeModifier(blockFromHash, nStakeModifier, nStakeModifierHeight, nStakeModifierTime, fPrintProofOfStake))
     {
-        // printf(">>> CheckStakeKernelHash: GetKernelStakeModifier return false\n");
+        //printf(">>> CheckStakeKernelHash: GetKernelStakeModifier return false\n");
         return false;
     }
-    // printf(">>> CheckStakeKernelHash: passed GetKernelStakeModifier\n");
+    //printf(">>> CheckStakeKernelHash: passed GetKernelStakeModifier\n");
     ss << nStakeModifier;
 
     ss << nTimeBlockFrom << txPrevTime << prevout.n << nTimeTx;
@@ -263,11 +268,15 @@ bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, 
     }
 
     // Now check if proof-of-stake hash meets target protocol
-    if (CBigNum(hashProofOfStake) > bnCoinDayWeight * bnTargetPerCoinDay)
+    if (CBigNum(hashProofOfStake) > bnCoinDayWeight * bnTargetPerCoinDay * modifier)
     {
-        // printf(">>> bnCoinDayWeight = %s, bnTargetPerCoinDay=%s\n",
-        //	bnCoinDayWeight.ToString().c_str(), bnTargetPerCoinDay.ToString().c_str());
-        // printf(">>> CheckStakeKernelHash - hashProofOfStake too much\n");
+         //printf(">>> bnCoinDayWeight = %s, bnTargetPerCoinDay=%s\n",
+           // bnCoinDayWeight.ToString().c_str(), bnTargetPerCoinDay.ToString().c_str());
+
+         CBigNum weight = bnCoinDayWeight * bnTargetPerCoinDay;
+         //printf("\n\n hashProofOfStake %s > weight %s \n\n", CBigNum(hashProofOfStake).ToString().c_str(), weight.ToString().c_str() );
+
+         //printf(">>> CheckStakeKernelHash - hashProofOfStake too much\n");
         return false;
     }
 
@@ -285,7 +294,6 @@ bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, 
             nTimeBlockFrom, txPrevTime, prevout.n, nTimeTx,
             hashProofOfStake.ToString().c_str());
     }
-
     return true;
 }
 
@@ -329,7 +337,7 @@ bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hash
 bool CheckCoinStakeTimestamp(int64 nTimeBlock, int64 nTimeTx)
 {
     // v0.3 protocol
-    return (nTimeBlock == nTimeTx);
+    return ( !(nTimeBlock > (nTimeTx + 10)) );
 }
 
 // Get stake modifier checksum
