@@ -2559,17 +2559,6 @@ bool CBlock::AcceptBlock(CValidationState &state, CDiskBlockPos *dbp)
         if (pcheckpoint && nHeight < pcheckpoint->nHeight)
             return state.DoS(100, error("AcceptBlock() : forked chain older than last checkpoint (height %d)", nHeight));
 
-
-        // Verify hash target and signature of coinstake tx
-        if (IsProofOfStake())
-        {
-            if (!CheckProofOfStake(vtx[1], nBits, hashProofOfStake))
-            {
-                printf("WARNING: ProcessBlock(): check proof-of-stake failed for block %s\n", hash.ToString().c_str());
-                return false; // do not error here as we expect this during initial block download
-            }
-        }
-
         // Reject block.nVersion=1 blocks when 95% (75% on testnet) of the network has upgraded:
         if (nVersion < 2)
         {

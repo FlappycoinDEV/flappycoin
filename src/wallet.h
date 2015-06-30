@@ -300,6 +300,8 @@ public:
 
     bool GetTransaction(const uint256 &hashTx, CWalletTx& wtx);
 
+    bool GetGeneralTransaction(const uint256 &hashTx);
+
     bool SetDefaultKey(const CPubKey &vchPubKey);
 
     // signify that a particular wallet feature is now used. this may change nWalletVersion and nWalletMaxVersion if those are lower

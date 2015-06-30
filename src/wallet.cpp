@@ -1737,6 +1737,19 @@ void CWallet::PrintWallet(const CBlock& block)
     printf("\n");
 }
 
+bool CWallet::GetGeneralTransaction(const uint256 &hashTx)
+{
+    {
+        LOCK(cs_wallet);
+        map<uint256, CWalletTx>::iterator mi = mapWallet.find(hashTx);
+        if (mi != mapWallet.end())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool CWallet::GetTransaction(const uint256 &hashTx, CWalletTx& wtx)
 {
     {
