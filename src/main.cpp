@@ -1764,12 +1764,18 @@ bool CTransaction::CheckInputs(CValidationState &state, CCoinsViewCache &inputs,
             // ppcoin: coin stake tx earns reward instead of paying fee
             uint64 nCoinAge = GetCoinAge(inputs);
 
+            int64 nTxFee = nValueIn - GetValueOut();
             int64 nStakeReward = GetValueOut() - nValueIn;
             int64 calcedReward = GetProofOfStakeReward(nCoinAge, pindexBlock->nBits, pindexBlock->nHeight);
             if (nStakeReward > calcedReward)
             {
                 //printf("nStakeReward = %lli == calced PoSReward = %lli \n", (long long int)nStakeReward, (long long int)calcedReward);
                 return state.DoS(100, error("ConnectInputs() : %s stake reward exceeded", GetHash().ToString().substr(0,10).c_str()));
+            }
+            if(GetValueOut() < nStakeReward + nTxFee)
+            {
+                printf("valueOut = %lli, in + fee = %lli \n", (long long int)GetValueOut(), (long long int)(nStakeReward + nTxFee));
+                return state.DoS(100, error("ConnectInputs(): reward is negative"));
             }
         }
 
@@ -2558,6 +2564,7 @@ bool CBlock::AcceptBlock(CValidationState &state, CDiskBlockPos *dbp)
         CBlockIndex* pcheckpoint = Checkpoints::GetLastCheckpoint(mapBlockIndex);
         if (pcheckpoint && nHeight < pcheckpoint->nHeight)
             return state.DoS(100, error("AcceptBlock() : forked chain older than last checkpoint (height %d)", nHeight));
+
 
         // Reject block.nVersion=1 blocks when 95% (75% on testnet) of the network has upgraded:
         if (nVersion < 2)
