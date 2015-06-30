@@ -1662,23 +1662,18 @@ uint64 CTransaction::GetCoinAge(CCoinsViewCache &inputs) const
 {
     CBigNum bnCentSecond = 0;  // coin age in the unit of cent-seconds
     uint64  nCoinAge = 0;
-    for (unsigned int i = 0; i < vin.size(); i++)
+    for (unsigned int i = 0; i < this->vin.size(); i++)
     {
-        const COutPoint &prevout = vin[i].prevout;
+        const COutPoint &prevout = this->vin[i].prevout;
         const CCoins &coins = inputs.GetCoins(prevout.hash);
 
         int includeHeight = coins.nHeight;
         CBlockIndex* pblockindex = FindBlockByHeight(includeHeight);
-        uint64 prevTime = pblockindex->GetBlockTime();
-        if(prevTime + nStakeMinAge > nTime)
-        {
-            continue;
-        }
-        else
-        {
-            int64 nValueIn = coins.vout[prevout.n].nValue;
-            bnCentSecond += CBigNum(nValueIn) * (nTime - prevTime) / CENT;
-        }
+        uint64 prevTime = pblockindex->GetBlockTime();        
+
+        int64 nValueIn = coins.vout[prevout.n].nValue;
+        bnCentSecond += CBigNum(nValueIn) * (nTime - prevTime) / CENT;
+
     }
     CBigNum bnCoinDay = bnCentSecond * CENT / COIN / (24 *60 *60);
     nCoinAge = bnCoinDay.getuint();
@@ -1770,8 +1765,10 @@ bool CTransaction::CheckInputs(CValidationState &state, CCoinsViewCache &inputs,
             uint64 nCoinAge = GetCoinAge(inputs);
 
             int64 nStakeReward = GetValueOut() - nValueIn;
-            if (nStakeReward > GetProofOfStakeReward(nCoinAge, pindexBlock->nBits, pindexBlock->nHeight))
+            int64 calcedReward = GetProofOfStakeReward(nCoinAge, pindexBlock->nBits, pindexBlock->nHeight);
+            if (nStakeReward > calcedReward)
             {
+                //printf("nStakeReward = %lli == calced PoSReward = %lli \n", (long long int)nStakeReward, (long long int)calcedReward);
                 return state.DoS(100, error("ConnectInputs() : %s stake reward exceeded", GetHash().ToString().substr(0,10).c_str()));
             }
         }
