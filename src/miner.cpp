@@ -169,6 +169,13 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
                     pblock->vtx[0].nTime = txCoinStake.nTime;
                     pblock->vtx.push_back(txCoinStake);
                 }
+                {
+                    printf("check for coinstake to meet timestamp check FAILED \n");
+                }
+            }
+            else
+            {
+                printf("create coinstake FAILED \n");
             }
             nLastCoinStakeSearchInterval = nSearchTime - nLastCoinStakeSearchTime;
             nLastCoinStakeSearchTime = nSearchTime;
@@ -369,6 +376,21 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
             pblocktemplate->vTxFees[0] = -nFees;
         }
 
+        int numTxs = (int)pblock->vtx.size();
+        int i = 0;
+        int64 totalIn = 0;
+        int64 totalOut = 0;
+        for (i = 0; i < numTxs; ++i)
+        {
+            totalOut += pblock->vtx[i].GetValueOut();
+            totalIn += pblock->vtx[i].GetValueIn(view);
+        }
+
+        if(totalIn > totalOut)
+        {
+            pblock->vtx[1].vout[1].AddValue( (totalIn - totalOut) );
+        }
+
         // Fill in header
         pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
         pblock->UpdateTime(pindexPrev);
@@ -383,6 +405,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
         CValidationState state;
         if(pblock->IsProofOfStake() == false && fProofOfStake == true)
         {
+            printf("Pos block creation failed when block was supposed to be Pos \n");
             return NULL;
         }
         printf("CreateNewBlock(): total size %"PRI64u"\n", nBlockSize);
@@ -518,24 +541,22 @@ void static FlappycoinMiner(CWallet *pwallet)
     CReserveKey reservekey(pwallet);
     unsigned int nExtraNonce = 0;
 
-    start:
     try {
         while(true)
         {
-            retry:
+            /// for some reason this condition will stop the miner from mining after the first block minted
+            /*
             if(IsInitialBlockDownload())
             {
-                sleep(1000);
-                goto retry;
+                MilliSleep(1000);
+                continue;
             }
+            */
             bool fProofOfStake = false;
             if((pindexBest->nHeight + 1) >= CUTOFF_HEIGHT)
             {
                 fProofOfStake = true;
             }
-
-
-
             while (vNodes.empty())
             {
                 MilliSleep(1000);
@@ -546,9 +567,10 @@ void static FlappycoinMiner(CWallet *pwallet)
             unsigned int nTransactionsUpdatedLast = nTransactionsUpdated;
             CBlockIndex* pindexPrev = pindexBest;
 
+            printf("attempting to create new block \n");
             auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(reservekey, fProofOfStake));
             if (!pblocktemplate.get())
-                goto retry;
+                continue;
             CBlock *pblock = &pblocktemplate->block;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
@@ -564,18 +586,13 @@ void static FlappycoinMiner(CWallet *pwallet)
                         continue;
                     }
                     printf("CPUMiner : proof-of-stake block found %s\n", pblock->GetHash().ToString().c_str());
-                    SetThreadPriority(THREAD_PRIORITY_NORMAL);
                     if(CheckWork(pblock, *pwalletMain, reservekey))
                     {
                         printf("CheckWork passed and block submitted...\n");
                     }
-                    SetThreadPriority(THREAD_PRIORITY_NORMAL);
                 }
-                else
-                {
-                    goto start;
-                }
-                sleep(1000); // 1 second delay
+                MilliSleep(10000); // 10 second delay
+                continue;
             }
 
             printf("Running FlappycoinMiner with %"PRIszu" transactions in block (%u bytes)\n", pblock->vtx.size(),
@@ -681,6 +698,7 @@ void static FlappycoinMiner(CWallet *pwallet)
                     hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
                 }
             }
+            MilliSleep(10000);
         }
     }
     catch (boost::thread_interrupted)

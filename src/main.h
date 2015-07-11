@@ -437,6 +437,11 @@ public:
         return !(a == b);
     }
 
+    void AddValue(int64 valueToAdd)
+    {
+        nValue = nValue + valueToAdd;
+    }
+
     bool IsDust() const;
 
     std::string ToString() const

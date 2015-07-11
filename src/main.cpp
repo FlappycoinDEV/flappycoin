@@ -418,7 +418,8 @@ bool CTransaction::IsStandard(string& strReason) const
         }
     }
     BOOST_FOREACH(const CTxOut& txout, vout) {
-        if (!::IsStandard(txout.scriptPubKey)) {
+        if (!::IsStandard(txout.scriptPubKey))
+        {
             strReason = "scriptpubkey";
             return false;
         }
@@ -1462,8 +1463,7 @@ bool IsInitialBlockDownload()
         pindexLastBest = pindexBest;
         nLastUpdate = GetTime();
     }
-    return (GetTime() - nLastUpdate < 10 &&
-            pindexBest->GetBlockTime() < GetTime() - 24 * 60 * 60);
+    return (GetTime() - nLastUpdate < 10 &&  pindexBest->GetBlockTime() < GetTime() - 24 * 60 * 60);
 }
 
 void static InvalidChainFound(CBlockIndex* pindexNew)
@@ -1769,7 +1769,7 @@ bool CTransaction::CheckInputs(CValidationState &state, CCoinsViewCache &inputs,
             int64 calcedReward = GetProofOfStakeReward(nCoinAge, pindexBlock->nBits, pindexBlock->nHeight);
             if (nStakeReward > calcedReward)
             {
-                //printf("nStakeReward = %lli == calced PoSReward = %lli \n", (long long int)nStakeReward, (long long int)calcedReward);
+                printf("nStakeReward = %lli == calced PoSReward = %lli \n", (long long int)nStakeReward, (long long int)calcedReward);
                 return state.DoS(100, error("ConnectInputs() : %s stake reward exceeded", GetHash().ToString().substr(0,10).c_str()));
             }
             if(GetValueOut() < nStakeReward + nTxFee)
@@ -2564,7 +2564,6 @@ bool CBlock::AcceptBlock(CValidationState &state, CDiskBlockPos *dbp)
         CBlockIndex* pcheckpoint = Checkpoints::GetLastCheckpoint(mapBlockIndex);
         if (pcheckpoint && nHeight < pcheckpoint->nHeight)
             return state.DoS(100, error("AcceptBlock() : forked chain older than last checkpoint (height %d)", nHeight));
-
 
         // Reject block.nVersion=1 blocks when 95% (75% on testnet) of the network has upgraded:
         if (nVersion < 2)
