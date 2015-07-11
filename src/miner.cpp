@@ -518,28 +518,26 @@ void static FlappycoinMiner(CWallet *pwallet)
     CReserveKey reservekey(pwallet);
     unsigned int nExtraNonce = 0;
 
-    start:
     try {
         while(true)
         {
-            retry:
-            if(IsInitialBlockDownload())
+            if(IsInitialBlockDownload() || vNodes.empty())
             {
-                sleep(1000);
-                goto retry;
+                MilliSleep(1000);
+                continue;
             }
+
+            while (pwallet->IsLocked())
+            {
+                MilliSleep(1000);
+            }
+            
             bool fProofOfStake = false;
             if((pindexBest->nHeight + 1) >= CUTOFF_HEIGHT)
             {
                 fProofOfStake = true;
             }
 
-
-
-            while (vNodes.empty())
-            {
-                MilliSleep(1000);
-            }
             //
             // Create new block
             //
@@ -548,7 +546,11 @@ void static FlappycoinMiner(CWallet *pwallet)
 
             auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(reservekey, fProofOfStake));
             if (!pblocktemplate.get())
-                goto retry;
+            {
+                // Nothing to stake, sleep it off..
+                MilliSleep(1000);
+                continue;
+            }
             CBlock *pblock = &pblocktemplate->block;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
@@ -571,11 +573,9 @@ void static FlappycoinMiner(CWallet *pwallet)
                     }
                     SetThreadPriority(THREAD_PRIORITY_NORMAL);
                 }
-                else
-                {
-                    goto start;
-                }
-                sleep(1000); // 1 second delay
+                /* time between stake (maybe a minute is better?) */
+                MilliSleep(1000); // 1 second delay
+                continue;
             }
 
             printf("Running FlappycoinMiner with %"PRIszu" transactions in block (%u bytes)\n", pblock->vtx.size(),
