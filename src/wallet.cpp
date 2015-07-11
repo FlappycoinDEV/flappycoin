@@ -1532,6 +1532,22 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
         const CBlockIndex* pIndex0 = GetLastBlockIndex(pindexBest, false);
         int64 nCreditReward = GetProofOfStakeReward(nCoinAge, nBits ,pIndex0->nHeight);
         //printf("nCreditReward create=%i \n", nCreditReward);
+
+        /* BANDAID 
+         * This is a quick bandaid to keep the wallet from triggering DOS rules
+         * When a proper fix is implemented this insures these blocks are well below 
+         * the stake limit and will not be rejected, which would cause a fork
+         * (~24 coins)
+         */
+        if(nCreditReward > nCombineThreshold)
+        {
+            printf("CreateCoinStake(DEBUG): Halving nCreditReward to avoid DOS rule!\n");
+            nCreditReward = nCombineThreshold / 2; // could just max the reward for now?
+        }
+        /* END BANDAID */
+
+
+
         nCredit = nCredit + nCreditReward;
     }
 
