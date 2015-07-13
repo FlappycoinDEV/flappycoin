@@ -1382,17 +1382,15 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     int64 nValueIn = 0;
     if (!SelectCoins(nBalance, txNew.nTime, setCoins, nValueIn))
     {
-        printf("select coins failed \n");
+        //printf("select coins failed \n");
         return false;
     }
 
     if (setCoins.empty())
     {
-        printf("setcoins was empty \n");
+        //printf("setcoins was empty \n");
         return false;
     }
-
-    printf("setCoins size = %i \n", (int)setCoins.size());
     int64 nCredit = 0;
     CScript scriptPubKeyKernel;
     BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
@@ -1456,7 +1454,6 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
                 txNew.nTime -= n;
                 txNew.vin.push_back(CTxIn(pcoin.first->GetHash(), pcoin.second));
                 nCredit += pcoin.first->vout[pcoin.second].nValue;
-                printf("nCredit = %i \n", (int)nCredit);
                 vwtxPrev.push_back(pcoin.first);
                 txNew.vout.push_back(CTxOut(0, scriptPubKeyOut));
                 if (pcoin.first->GetTxTime() + nStakeSplitAge > txNew.nTime)
@@ -2182,9 +2179,6 @@ bool CWallet::SelectCoins(int64 nTargetValue, unsigned int nSpendTime, set<pair<
         }
         return (nValueRet >= nTargetValue);
     }
-
-    printf("avaiable coins size  = %i \n", (int)vCoins.size());
-
     setCoinsRet.clear();
     random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
 

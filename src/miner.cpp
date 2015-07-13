@@ -169,13 +169,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
                     pblock->vtx[0].nTime = txCoinStake.nTime;
                     pblock->vtx.push_back(txCoinStake);
                 }
-                {
-                    printf("check for coinstake to meet timestamp check FAILED \n");
-                }
-            }
-            else
-            {
-                printf("create coinstake FAILED \n");
             }
             nLastCoinStakeSearchInterval = nSearchTime - nLastCoinStakeSearchTime;
             nLastCoinStakeSearchTime = nSearchTime;
@@ -221,7 +214,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
                     // or other transactions in the memory pool.
                     if (!mempool.mapTx.count(txin.prevout.hash))
                     {
-                        printf("ERROR: mempool transaction missing input\n");
+                        //printf("ERROR: mempool transaction missing input\n");
                         if (fDebug) assert("mempool transaction missing input" == 0);
                         fMissingInputs = true;
                         if (porphan)
@@ -405,10 +398,10 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
         CValidationState state;
         if(pblock->IsProofOfStake() == false && fProofOfStake == true)
         {
-            printf("Pos block creation failed when block was supposed to be Pos \n");
+            //printf("Pos block creation failed when block was supposed to be Pos \n");
             return NULL;
         }
-        printf("CreateNewBlock(): total size %"PRI64u"\n", nBlockSize);
+        //printf("CreateNewBlock(): total size %"PRI64u"\n", nBlockSize);
         if (!pblock->ConnectBlock(state, &indexDummy, viewNew, true))
             throw std::runtime_error("CreateNewBlock() : ConnectBlock failed");
     }
@@ -544,14 +537,6 @@ void static FlappycoinMiner(CWallet *pwallet)
     try {
         while(true)
         {
-            /// for some reason this condition will stop the miner from mining after the first block minted
-            /*
-            if(IsInitialBlockDownload())
-            {
-                MilliSleep(1000);
-                continue;
-            }
-            */
             bool fProofOfStake = false;
             if((pindexBest->nHeight + 1) >= CUTOFF_HEIGHT)
             {
@@ -567,7 +552,6 @@ void static FlappycoinMiner(CWallet *pwallet)
             unsigned int nTransactionsUpdatedLast = nTransactionsUpdated;
             CBlockIndex* pindexPrev = pindexBest;
 
-            printf("attempting to create new block \n");
             auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(reservekey, fProofOfStake));
             if (!pblocktemplate.get())
                 continue;
@@ -576,11 +560,11 @@ void static FlappycoinMiner(CWallet *pwallet)
 
             if (fProofOfStake)
             {
-                printf("Mining PoS Blocks... \n");
+                //printf("Mining PoS Blocks... \n");
                 // ppcoin: if proof-of-stake block found then process block
                 if (pblock->IsProofOfStake())
                 {
-                    printf("Block is PoS, attempting to sign the scrypt block... \n");
+                    //printf("Block is PoS, attempting to sign the scrypt block... \n");
                     if (!pblock->SignScryptBlock(*pwalletMain))
                     {
                         continue;
@@ -588,10 +572,10 @@ void static FlappycoinMiner(CWallet *pwallet)
                     printf("CPUMiner : proof-of-stake block found %s\n", pblock->GetHash().ToString().c_str());
                     if(CheckWork(pblock, *pwalletMain, reservekey))
                     {
-                        printf("CheckWork passed and block submitted...\n");
+                        //printf("CheckWork passed and block submitted...\n");
                     }
                 }
-                MilliSleep(10000); // 10 second delay
+                MilliSleep(30000); // 30 second delay
                 continue;
             }
 
