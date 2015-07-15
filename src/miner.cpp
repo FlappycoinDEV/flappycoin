@@ -554,7 +554,11 @@ void static FlappycoinMiner(CWallet *pwallet)
 
             auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(reservekey, fProofOfStake));
             if (!pblocktemplate.get())
+            {
+                // Nothing to mine, sleep it off...
+                MilliSleep(1000);
                 continue;
+            }
             CBlock *pblock = &pblocktemplate->block;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
