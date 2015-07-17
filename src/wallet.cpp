@@ -1530,6 +1530,12 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
         const CBlockIndex* pIndex0 = GetLastBlockIndex(pindexBest, false);
         int64 nCreditReward = GetProofOfStakeReward(nCoinAge, nBits ,pIndex0->nHeight);
         //printf("nCreditReward create=%i \n", nCreditReward);
+
+        // Quickfix: to avoid "coinbase pays to much"
+        if(nCreditReward > nCombineThreshold)
+        {
+          nCreditReward = nCombineThreshold;
+        }
         nCredit = nCredit + nCreditReward;
     }
 
