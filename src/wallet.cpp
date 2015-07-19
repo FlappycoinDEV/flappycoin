@@ -858,11 +858,11 @@ void CWalletTx::RelayWalletTransaction()
         // Important: versions of bitcoin before 0.8.6 had a bug that inserted
         // empty transactions into the vtxPrev, which will cause the node to be
         // banned when retransmitted, hence the check for !tx.vin.empty()
-        if (!tx.IsCoinBase() && !tx.vin.empty())
+        if (!(tx.IsCoinBase() || tx.IsCoinStake()) && !tx.vin.empty())
             if (tx.GetDepthInMainChain() == 0)
                 RelayTransaction((CTransaction)tx, tx.GetHash());
     }
-    if (!IsCoinBase())
+    if (!(IsCoinBase() || IsCoinStake()))
     {
         if (GetDepthInMainChain() == 0) {
             uint256 hash = GetHash();
