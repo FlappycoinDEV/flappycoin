@@ -369,7 +369,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
             pblocktemplate->vTxFees[0] = -nFees;
         }
 
-/*
         int numTxs = (int)pblock->vtx.size();
         int i = 0;
         int64 totalIn = 0;
@@ -384,7 +383,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
         {
             pblock->vtx[1].vout[1].AddValue( (totalIn - totalOut) );
         }
-*/
 
         // Fill in header
         pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
