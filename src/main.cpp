@@ -953,7 +953,7 @@ bool CWalletTx::AcceptWalletTransaction(bool fCheckInputs)
         // Add previous supporting transactions first
         BOOST_FOREACH(CMerkleTx& tx, vtxPrev)
         {
-            if (!tx.IsCoinBase())
+            if (!(tx.IsCoinBase() || tx.IsCoinStake()))
             {
                 uint256 hash = tx.GetHash();
                 if (!mempool.exists(hash) && pcoinsTip->HaveCoins(hash))
