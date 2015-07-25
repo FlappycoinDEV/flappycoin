@@ -2150,7 +2150,7 @@ void CWallet::GetAllReserveKeys(set<CKeyID>& setAddress)
     }
 }
 
-void CWallet::UpdatedTransaction(const uint256 &hashTx)
+void CWallet::UpdatedTransaction(const uint256 &hashTx, bool fDeleted)
 {
     {
         LOCK(cs_wallet);
@@ -2158,6 +2158,8 @@ void CWallet::UpdatedTransaction(const uint256 &hashTx)
         map<uint256, CWalletTx>::const_iterator mi = mapWallet.find(hashTx);
         if (mi != mapWallet.end())
             NotifyTransactionChanged(this, hashTx, CT_UPDATED);
+        else if (fDeleted)
+            NotifyTransactionChanged(this, hashTx, CT_DELETED);
     }
 }
 

@@ -278,7 +278,7 @@ public:
 
     bool DelAddressBookName(const CTxDestination& address);
 
-    void UpdatedTransaction(const uint256 &hashTx);
+    void UpdatedTransaction(const uint256 &hashTx, bool fDeleted);
 
     void PrintWallet(const CBlock& block);
 

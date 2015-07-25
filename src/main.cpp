@@ -150,10 +150,10 @@ void static SetBestChain(const CBlockLocator& loc)
 }
 
 // notify wallets about an updated transaction
-void static UpdatedTransaction(const uint256& hashTx)
+void static UpdatedTransaction(const uint256& hashTx, bool fDeleted)
 {
     BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
-        pwallet->UpdatedTransaction(hashTx);
+        pwallet->UpdatedTransaction(hashTx, fDeleted);
 }
 
 // dump all wallets
@@ -2180,10 +2180,22 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
 
     // Resurrect memory transactions that were in the disconnected branch
     BOOST_FOREACH(CTransaction& tx, vResurrect) {
-        // ignore validation errors in resurrected transactions
-        CValidationState stateDummy;
-        if (!tx.AcceptToMemoryPool(stateDummy, true, false))
-            mempool.remove(tx, true);
+        if (tx.IsCoinStake()) {
+            // Remove coinstake transactions in orphaned blocks
+            // First disconnect inputs
+            BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
+                if (pwallet->IsFromMe(tx))
+                    pwallet->DisableTransaction(tx);
+
+            uint256 hashTx = tx.GetHash();
+            EraseFromWallets(hashTx);
+            UpdatedTransaction(hashTx, true);
+        } else {
+           // ignore validation errors in resurrected transactions
+           CValidationState stateDummy;
+           if (!tx.AcceptToMemoryPool(stateDummy, true, false))
+               mempool.remove(tx, true);
+        }
     }
 
     // Delete redundant memory transactions that are in the connected branch
@@ -2303,7 +2315,7 @@ bool CBlock::AddToBlockIndex(CValidationState &state, const CDiskBlockPos &pos, 
     {
         // Notify UI to display prev block's coinbase if it was ours
         static uint256 hashPrevBestCoinBase;
-        UpdatedTransaction(hashPrevBestCoinBase);
+        UpdatedTransaction(hashPrevBestCoinBase, false);
         hashPrevBestCoinBase = GetTxHash(0);
     }
 
