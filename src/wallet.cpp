@@ -604,7 +604,7 @@ int CWalletTx::GetRequestCount() const
     int nRequests = -1;
     {
         LOCK(pwallet->cs_wallet);
-        if (IsCoinBase())
+        if (IsCoinBase() || IsCoinStake())
         {
             // Generated block
             if (hashBlock != 0)
@@ -640,12 +640,11 @@ int CWalletTx::GetRequestCount() const
 void CWalletTx::GetAmounts(list<pair<CTxDestination, int64> >& listReceived,
                            list<pair<CTxDestination, int64> >& listSent, int64& nFee, string& strSentAccount) const
 {
+    nFee = 0;
     listReceived.clear();
     listSent.clear();
     strSentAccount = strFromAccount;
 
-    nFee = 0;
-    
     // Compute fee:
     int64 nDebit = GetDebit();
     if (nDebit > 0) // debit>0 means we signed/sent this transaction
@@ -657,22 +656,39 @@ void CWalletTx::GetAmounts(list<pair<CTxDestination, int64> >& listReceived,
     // Sent/received.
     BOOST_FOREACH(const CTxOut& txout, vout)
     {
+        // ppcoin: Skip special stake out
+        if (txout.scriptPubKey.empty())
+            continue;
+
+        bool fIsMine;
+        // Only need to handle txouts if AT LEAST one of these is true:
+        //   1) they debit from us (sent)
+        //   2) the output is to us (received)
+        if (nDebit > 0)
+        {
+            // Don't report 'change' txouts
+            if (pwallet->IsChange(txout))
+                continue;
+            fIsMine = pwallet->IsMine(txout);
+        }
+        else if (!(fIsMine = pwallet->IsMine(txout)))
+            continue;
+
+        // In either case, we need to get the destination address
         CTxDestination address;
-        vector<unsigned char> vchPubKey;
         if (!ExtractDestination(txout.scriptPubKey, address))
         {
             printf("CWalletTx::GetAmounts: Unknown transaction type found, txid %s\n",
                    this->GetHash().ToString().c_str());
+            address = CNoDestination();
         }
 
-        // Don't report 'change' txouts
-        if (nDebit > 0 && pwallet->IsChange(txout))
-            continue;
-
+        // If we are debited by the transaction, add the output as a "sent" entry
         if (nDebit > 0)
             listSent.push_back(make_pair(address, txout.nValue));
 
-        if (pwallet->IsMine(txout))
+        // If we are receiving the output, add it as a "received" entry
+        if (fIsMine)
             listReceived.push_back(make_pair(address, txout.nValue));
     }
 
@@ -808,7 +824,7 @@ void CWallet::ReacceptWalletTransactions()
         BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, mapWallet)
         {
             CWalletTx& wtx = item.second;
-            if (wtx.IsCoinBase() && wtx.IsSpent(0))
+            if ((wtx.IsCoinBase() && wtx.IsSpent(0)) || (wtx.IsCoinStake() && wtx.IsSpent(1)))
                 continue;
 
             CCoins coins;
@@ -838,7 +854,7 @@ void CWallet::ReacceptWalletTransactions()
             else
             {
                 // Re-accept any txes of ours that aren't already in a block
-                if (!wtx.IsCoinBase())
+                if (!(wtx.IsCoinBase() || wtx.IsCoinStake()))
                     wtx.AcceptWalletTransaction(false);
             }
         }
@@ -858,11 +874,11 @@ void CWalletTx::RelayWalletTransaction()
         // Important: versions of bitcoin before 0.8.6 had a bug that inserted
         // empty transactions into the vtxPrev, which will cause the node to be
         // banned when retransmitted, hence the check for !tx.vin.empty()
-        if (!tx.IsCoinBase() && !tx.vin.empty())
+        if (!(tx.IsCoinBase() || tx.IsCoinStake()) && !tx.vin.empty())
             if (tx.GetDepthInMainChain() == 0)
                 RelayTransaction((CTransaction)tx, tx.GetHash());
     }
-    if (!IsCoinBase())
+    if (!(IsCoinBase() || IsCoinStake()))
     {
         if (GetDepthInMainChain() == 0) {
             uint256 hash = GetHash();
@@ -986,7 +1002,7 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
             if (fOnlyConfirmed && !pcoin->IsConfirmed())
                 continue;
 
-            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+            if ((pcoin->IsCoinBase() || pcoin->IsCoinStake()) && pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
             for (unsigned int i = 0; i < pcoin->vout.size(); i++)
@@ -1530,6 +1546,12 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
         const CBlockIndex* pIndex0 = GetLastBlockIndex(pindexBest, false);
         int64 nCreditReward = GetProofOfStakeReward(nCoinAge, nBits ,pIndex0->nHeight);
         //printf("nCreditReward create=%i \n", nCreditReward);
+
+        // Quickfix: to avoid "coinbase pays to much"
+        if(nCreditReward > nCombineThreshold)
+        {
+          nCreditReward = nCombineThreshold;
+        }
         nCredit = nCredit + nCreditReward;
     }
 
@@ -1946,7 +1968,7 @@ std::map<CTxDestination, int64> CWallet::GetAddressBalances()
             if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
                 continue;
 
-            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+            if ((pcoin->IsCoinBase() || pcoin->IsCoinStake()) && pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
             int nDepth = pcoin->GetDepthInMainChain();
@@ -2065,6 +2087,28 @@ set< set<CTxDestination> > CWallet::GetAddressGroupings()
     return ret;
 }
 
+// ppcoin: disable transaction (only for coinstake)
+void CWallet::DisableTransaction(const CTransaction &tx)
+{
+    if (!tx.IsCoinStake() || !IsFromMe(tx))
+        return; // only disconnecting coinstake requires marking input unspent
+
+    LOCK(cs_wallet);
+    BOOST_FOREACH(const CTxIn& txin, tx.vin)
+    {
+        map<uint256, CWalletTx>::iterator mi = mapWallet.find(txin.prevout.hash);
+        if (mi != mapWallet.end())
+        {
+            CWalletTx& prev = (*mi).second;
+            if (txin.prevout.n < prev.vout.size() && IsMine(prev.vout[txin.prevout.n]))
+            {
+                prev.MarkUnspent(txin.prevout.n);
+                prev.WriteToDisk();
+            }
+        }
+    }
+}
+
 bool CReserveKey::GetReservedKey(CPubKey& pubkey)
 {
     if (nIndex == -1)
@@ -2122,7 +2166,7 @@ void CWallet::GetAllReserveKeys(set<CKeyID>& setAddress)
     }
 }
 
-void CWallet::UpdatedTransaction(const uint256 &hashTx)
+void CWallet::UpdatedTransaction(const uint256 &hashTx, bool fDeleted)
 {
     {
         LOCK(cs_wallet);
@@ -2130,6 +2174,8 @@ void CWallet::UpdatedTransaction(const uint256 &hashTx)
         map<uint256, CWalletTx>::const_iterator mi = mapWallet.find(hashTx);
         if (mi != mapWallet.end())
             NotifyTransactionChanged(this, hashTx, CT_UPDATED);
+        else if (fDeleted)
+            NotifyTransactionChanged(this, hashTx, CT_DELETED);
     }
 }
 

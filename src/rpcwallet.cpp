@@ -1003,7 +1003,7 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
     bool fAllAccounts = (strAccount == string("*"));
 
     // Sent
-    if ((!wtx.IsCoinStake() && !listSent.empty() || nFee != 0) && (fAllAccounts || strAccount == strSentAccount))
+    if (!wtx.IsCoinStake() && (!listSent.empty() || nFee != 0) && (fAllAccounts || strAccount == strSentAccount))
     {
         BOOST_FOREACH(const PAIRTYPE(CTxDestination, int64)& s, listSent)
         {
