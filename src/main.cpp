@@ -2568,6 +2568,34 @@ bool CBlock::AcceptBlock(CValidationState &state, CDiskBlockPos *dbp)
             if (!tx.IsFinal(nHeight, GetBlockTime()))
                 return state.DoS(10, error("AcceptBlock() : contains a non-final transaction"));
 
+        // Verify hash target and signature of coinstake tx
+        uint256 hashProofOfStake = 0, targetProofOfStake = 0;
+        CBlockIndex* BlockFromIndex;
+        if(IsProofOfStake())
+        {
+            std::map<uint256,CBlockIndex*>::iterator it;
+            it = mapBlockIndex.find(this->TxPrevFromBlockHash);
+            if(it != mapBlockIndex.end())
+            {
+                BlockFromIndex = it->second;
+            }
+            else
+            {
+                return state.DoS(100, error("Block that contained staked Tx was not found in main chain"));
+            }
+            CBlock blockFrom;
+            blockFrom.ReadFromDisk(BlockFromIndex);
+
+            if (!CheckProofOfStake(vtx[1], nBits, hashProofOfStake, &blockFrom))
+            {
+                printf("WARNING: ProcessBlock(): check proof-of-stake failed for block %s\n", hash.ToString().c_str());
+                return false; // do not error here as we expect this during initial block download
+            }
+        }
+
+
+
+
         // Check that the block chain matches the known block chain up to a checkpoint
         if (!Checkpoints::CheckBlock(nHeight, hash))
             return state.DoS(100, error("AcceptBlock() : rejected by checkpoint lock-in at %d", nHeight));
@@ -2688,6 +2716,8 @@ bool ProcessBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, CDiskBl
 
         if (bnNewBlock > bnRequired)
         {
+            if (pfrom)
+                pfrom->Misbehaving(100);
             return state.DoS(100, error("ProcessBlock() : block with too little %s", pblock->IsProofOfStake()? "proof-of-stake" : "proof-of-work"));
         }
     }
@@ -2700,7 +2730,6 @@ bool ProcessBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, CDiskBl
 
         // Accept orphans as long as there is a node to request its parents from
         CBlock* pblock2 = new CBlock(*pblock);
-
         //check proof of stake
         if (pblock2->IsProofOfStake())
         {
@@ -2712,11 +2741,11 @@ bool ProcessBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, CDiskBl
                 setStakeSeenOrphan.insert(pblock2->GetProofOfStake());
         }
 
-        if (pfrom) {
-            mapOrphanBlocks.insert(make_pair(hash, pblock2));
-            mapOrphanBlocksByPrev.insert(make_pair(pblock2->hashPrevBlock, pblock2));
+        mapOrphanBlocks.insert(make_pair(hash, pblock2));
+        mapOrphanBlocksByPrev.insert(make_pair(pblock2->hashPrevBlock, pblock2));
 
-            // Ask this guy to fill in what we're missing
+        if (pfrom)
+        {
             pfrom->PushGetBlocks(pindexBest, GetOrphanRoot(pblock2));
         }
         return true;

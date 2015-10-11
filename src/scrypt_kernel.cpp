@@ -298,7 +298,7 @@ bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, 
 }
 
 // Check kernel hash target and coinstake signature
-bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hashProofOfStake)
+bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hashProofOfStake, CBlock* blockFrom)
 {
     if (!tx.IsCoinStake())
         return error("CheckProofOfStake() : called on non-coinstake %s", tx.GetHash().ToString().c_str());
@@ -313,23 +313,14 @@ bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hash
     if (!pwalletMain->GetGeneralTransaction(hash))
         return tx.DoS(1, error("CheckProofOfStake() : INFO: read txPrev failed"));  // previous transaction not in main chain, may occur during initial download
     const CWalletTx& wtx = pwalletMain->mapWallet[hash];
+
     // Verify signature
     if (!VerifySignature(wtx, tx, 0, true, 0))
         return tx.DoS(100, error("CheckProofOfStake() : VerifySignature failed on coinstake %s", tx.GetHash().ToString().c_str()));
 
-    uint256 blockhash = wtx.hashBlock;
-    std::map<uint256,CBlockIndex*>::iterator it;
-    it = mapBlockIndex.find(blockhash);
-    if(it != mapBlockIndex.end())
-    {
-        CBlockIndex* blockFrom = it->second;
-        if (!CheckStakeKernelHashScrypt(nBits, (unsigned int)blockFrom->GetBlockTime(), blockFrom->GetBlockHash(), wtx, txin.prevout, tx.nTime, hashProofOfStake, fDebug))
-            return tx.DoS(1, error("CheckProofOfStake() : INFO: check kernel failed on coinstake %s, hashProof=%s", tx.GetHash().ToString().c_str(), hashProofOfStake.ToString().c_str())); // may occur during initial download or if behind on block chain sync
-    }
-    else
-    {
-        return error("CheckProofOfStake() : cant get block that PrevTx is supposed to be in", tx.GetHash().ToString().c_str());
-    }
+    if (!CheckStakeKernelHashScrypt(nBits, (unsigned int)blockFrom->GetBlockTime(), blockFrom->GetHash(), wtx, txin.prevout, tx.nTime, hashProofOfStake, fDebug))
+        return tx.DoS(1, error("CheckProofOfStake() : INFO: check kernel failed on coinstake %s, hashProof=%s", tx.GetHash().ToString().c_str(), hashProofOfStake.ToString().c_str())); // may occur during initial download or if behind on block chain sync
+
     return true;
 }
 

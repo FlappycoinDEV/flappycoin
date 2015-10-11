@@ -1352,6 +1352,8 @@ public:
     // memory only
     mutable std::vector<uint256> vMerkleTree;
 
+    uint256 TxPrevFromBlockHash;
+
     CBlock()
     {
         SetNull();
@@ -1718,6 +1720,7 @@ public:
     COutPoint prevoutStake;
     unsigned int nStakeTime;
     uint256 hashProofOfStake;
+    uint256 TxPrevFromBlockHash;
 
 
     // block header
@@ -1746,6 +1749,8 @@ public:
         hashProofOfStake = 0;
         prevoutStake.SetNull();
         nStakeTime = 0;
+        TxPrevFromBlockHash = 0;
+
 
         nVersion       = 0;
         hashMerkleRoot = 0;
@@ -1770,11 +1775,13 @@ public:
         nStakeModifier = 0;
         nStakeModifierChecksum = 0;
         hashProofOfStake = 0;
+        TxPrevFromBlockHash = 0;
         if (block.IsProofOfStake())
         {
             SetProofOfStake();
             prevoutStake = block.vtx[1].vin[0].prevout;
             nStakeTime = block.vtx[1].nTime;
+            TxPrevFromBlockHash = block.TxPrevFromBlockHash;
         }
         else
         {
@@ -1996,12 +2003,14 @@ public:
             READWRITE(prevoutStake);
             READWRITE(nStakeTime);
             READWRITE(hashProofOfStake);
+            READWRITE(TxPrevFromBlockHash);
         }
         else if (fRead)
         {
             const_cast<CDiskBlockIndex*>(this)->prevoutStake.SetNull();
             const_cast<CDiskBlockIndex*>(this)->nStakeTime = 0;
             const_cast<CDiskBlockIndex*>(this)->hashProofOfStake = 0;
+            const_cast<CDiskBlockIndex*>(this)->TxPrevFromBlockHash = 0;
         }
 
         // block header

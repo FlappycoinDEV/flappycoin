@@ -151,6 +151,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
 
 
         CTransaction txCoinStake;
+        uint256 blockFromHash;
         txCoinStake.nTime = GetTime();
         int64 nSearchTime = txCoinStake.nTime; // search to current time
 
@@ -158,7 +159,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
         if (nSearchTime > nLastCoinStakeSearchTime)
         {
             //printf(">>> creating coinstake... \n");
-            if (pwalletMain->CreateCoinStake(*pwalletMain, pblock->nBits, nSearchTime-nLastCoinStakeSearchTime, txCoinStake))
+            if (pwalletMain->CreateCoinStake(*pwalletMain, pblock->nBits, nSearchTime-nLastCoinStakeSearchTime, txCoinStake, blockFromHash))
             {
                // printf("created coinstake. value out %llu. to string: %s \n",txCoinStake.GetValueOut(), txCoinStake.ToString().c_str());
                 if (txCoinStake.nTime >= max(pindexPrev->GetMedianTimePast()+1, pindexPrev->GetBlockTime() - (2 * 60 * 60)))
@@ -168,6 +169,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
                     pblock->vtx[0].vout[0].SetEmpty();
                     pblock->vtx[0].nTime = txCoinStake.nTime;
                     pblock->vtx.push_back(txCoinStake);
+                    pblock->TxPrevFromBlockHash = blockFromHash;
                 }
             }
             nLastCoinStakeSearchInterval = nSearchTime - nLastCoinStakeSearchTime;
