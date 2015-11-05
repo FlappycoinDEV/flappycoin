@@ -212,7 +212,7 @@ bool GetKernelStakeModifier(uint256 hashBlockFrom, uint64& nStakeModifier, int& 
 //   quantities so as to generate blocks faster, degrading the system back into
 //   a proof-of-work situation.
 //
-bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, uint256 blockFromHash, const CWalletTx txPrev, const COutPoint& prevout, unsigned int nTimeTx, uint256& hashProofOfStake, bool fPrintProofOfStake)
+bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, uint256 blockFromHash, const CTransaction &txPrev, const COutPoint& prevout, unsigned int nTimeTx, uint256& hashProofOfStake, bool fPrintProofOfStake)
 {
     unsigned int txPrevTime = blockFromTime;
     if (nTimeTx < txPrevTime)  // Transaction timestamp violation
@@ -298,27 +298,32 @@ bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, 
 }
 
 // Check kernel hash target and coinstake signature
-bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hashProofOfStake, CBlock* blockFrom)
-{
+bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hashProofOfStake, CBlock* blockFrom, unsigned int curTime)
+{    
     if (!tx.IsCoinStake())
         return error("CheckProofOfStake() : called on non-coinstake %s", tx.GetHash().ToString().c_str());
 
-    // Kernel (input 0) must match the stake hash target per coin age (nBits)
     const CTxIn& txin = tx.vin[0];
-
-    // First try finding the previous transaction in database
-
-    const COutPoint &prevout = txin.prevout;
-    uint256 hash = prevout.hash;
-    if (!pwalletMain->GetGeneralTransaction(hash))
+    bool contains = false;
+    CTransaction wtx;
+    BOOST_FOREACH(const CTransaction& tx, blockFrom->vtx)
+    {
+        if(tx.GetHash() == txin.prevout.hash)
+        {
+            wtx = tx;
+            contains = true;
+        }
+    }
+    if(!contains)
+    {
         return tx.DoS(1, error("CheckProofOfStake() : INFO: read txPrev failed"));  // previous transaction not in main chain, may occur during initial download
-    const CWalletTx& wtx = pwalletMain->mapWallet[hash];
+    }
 
     // Verify signature
     if (!VerifySignature(wtx, tx, 0, true, 0))
         return tx.DoS(100, error("CheckProofOfStake() : VerifySignature failed on coinstake %s", tx.GetHash().ToString().c_str()));
 
-    if (!CheckStakeKernelHashScrypt(nBits, (unsigned int)blockFrom->GetBlockTime(), blockFrom->GetHash(), wtx, txin.prevout, tx.nTime, hashProofOfStake, fDebug))
+    if (!CheckStakeKernelHashScrypt(nBits, (unsigned int)blockFrom->nTime, blockFrom->GetHash(), wtx, txin.prevout, curTime, hashProofOfStake, fDebug))
         return tx.DoS(1, error("CheckProofOfStake() : INFO: check kernel failed on coinstake %s, hashProof=%s", tx.GetHash().ToString().c_str(), hashProofOfStake.ToString().c_str())); // may occur during initial download or if behind on block chain sync
 
     return true;

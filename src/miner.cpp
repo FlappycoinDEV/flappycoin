@@ -170,6 +170,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
                     pblock->vtx[0].nTime = txCoinStake.nTime;
                     pblock->vtx.push_back(txCoinStake);
                     pblock->TxPrevFromBlockHash = blockFromHash;
+                    printf(">>>DEBUG<<< TxPrevFromBlockHash set to %s \n", pblock->TxPrevFromBlockHash.ToString().c_str());
                 }
             }
             nLastCoinStakeSearchInterval = nSearchTime - nLastCoinStakeSearchTime;
@@ -544,7 +545,7 @@ void static FlappycoinMiner(CWallet *pwallet)
             {
                 fProofOfStake = true;
             }
-            while (vNodes.empty())
+            while (vNodes.empty() || vNodes.size() < 3)
             {
                 MilliSleep(1000);
             }
@@ -576,9 +577,12 @@ void static FlappycoinMiner(CWallet *pwallet)
                         continue;
                     }
                     printf("CPUMiner : proof-of-stake block found %s\n", pblock->GetHash().ToString().c_str());
-                    if(CheckWork(pblock, *pwalletMain, reservekey))
+                    if(pblock->IsProofOfStake())
                     {
-                        //printf("CheckWork passed and block submitted...\n");
+                        if(CheckWork(pblock, *pwalletMain, reservekey))
+                        {
+                            //printf("CheckWork passed and block submitted...\n");
+                        }
                     }
                 }
                 MilliSleep(30000); // 30 second delay

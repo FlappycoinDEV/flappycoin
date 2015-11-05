@@ -6,6 +6,10 @@
 #include "main.h"
 #include "bitcoinrpc.h"
 
+#include <string>
+#include <stdio.h>
+#include <stdlib.h>
+
 using namespace json_spirit;
 using namespace std;
 
@@ -171,15 +175,28 @@ Value getblock(const Array& params, bool fHelp)
     std::string strHash = params[0].get_str();
     uint256 hash(strHash);
 
+    bool TxSizeOnly = false;
+    if(params.size() > 1)
+        TxSizeOnly = params[1].get_bool();
+
     bool fVerbose = true;
-    if (params.size() > 1)
-        fVerbose = params[1].get_bool();
+    if (params.size() > 2)
+        fVerbose = params[2].get_bool();
 
     if (mapBlockIndex.count(hash) == 0)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
 
     CBlock block;
     CBlockIndex* pblockindex = mapBlockIndex[hash];
+
+    if(TxSizeOnly)
+    {
+        unsigned int size = pblockindex->nTx;
+        char buffer[33];
+        itoa(size,buffer,10);
+        return buffer;
+    }
+
     block.ReadFromDisk(pblockindex);
 
     if (!fVerbose)

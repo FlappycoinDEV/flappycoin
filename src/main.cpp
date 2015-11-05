@@ -572,8 +572,12 @@ bool CTransaction::CheckTransaction(CValidationState &state) const
     if (vout.empty())
         return state.DoS(10, error("CTransaction::CheckTransaction() : vout empty"));
     // Size limits
-    if (::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION) > MAX_BLOCK_SIZE)
+    unsigned int SerializeSize = ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION);
+    if (SerializeSize > MAX_BLOCK_SIZE)
+    {
+        printf("size calculated = %u, MaxSize = %u \n", SerializeSize, MAX_BLOCK_SIZE);
         return state.DoS(100, error("CTransaction::CheckTransaction() : size limits failed"));
+    }
 
     // Check for negative or overflow output values
     int64 nValueOut = 0;
@@ -1644,7 +1648,7 @@ bool VerifySignature(const CCoins& txFrom, const CTransaction& txTo, unsigned in
     return CScriptCheck(txFrom, txTo, nIn, flags, nHashType)();
 }
 
-bool VerifySignature(const CWalletTx& txFrom, const CTransaction& txTo, unsigned int nIn, bool fValidatePayToScriptHash, int nHashType)
+bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, bool fValidatePayToScriptHash, int nHashType)
 {
     assert(nIn < txTo.vin.size());
     const CTxIn& txin = txTo.vin[nIn];
@@ -2426,8 +2430,23 @@ bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerk
     // that can be verified before saving an orphan block.
 
     // Size limits
-    if (vtx.empty() || vtx.size() > MAX_BLOCK_SIZE || ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION) > MAX_BLOCK_SIZE)
+    unsigned int SerializeSize = ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION);
+    if (vtx.empty())
+    {
+        printf("vtx.size() = %u is empty (size = 0) \n", vtx.size());
         return state.DoS(100, error("CheckBlock() : size limits failed"));
+    }
+    if (vtx.size() > MAX_BLOCK_SIZE)
+    {
+        printf("vtx.size() = %u > MaxSize = %u \n", vtx.size(), MAX_BLOCK_SIZE);
+        return state.DoS(100, error("CheckBlock() : size limits failed"));
+    }
+
+    if(SerializeSize > MAX_BLOCK_SIZE)
+    {
+        printf("size calculated = %u is > MaxSize = %u \n", SerializeSize, MAX_BLOCK_SIZE);
+        return state.DoS(100, error("CheckBlock() : size limits failed"));
+    }
 
     // Flappycoin: Special short-term limits to avoid 10,000 BDB lock limit:
     if (GetBlockTime() < 1376568000)  // stop enforcing 15 August 2013 00:00:00
@@ -2574,6 +2593,7 @@ bool CBlock::AcceptBlock(CValidationState &state, CDiskBlockPos *dbp)
         if(IsProofOfStake())
         {
             std::map<uint256,CBlockIndex*>::iterator it;
+            printf("TxPrevFromBlockHash = %s \n", this->TxPrevFromBlockHash.ToString().c_str());
             it = mapBlockIndex.find(this->TxPrevFromBlockHash);
             if(it != mapBlockIndex.end())
             {
@@ -2586,15 +2606,12 @@ bool CBlock::AcceptBlock(CValidationState &state, CDiskBlockPos *dbp)
             CBlock blockFrom;
             blockFrom.ReadFromDisk(BlockFromIndex);
 
-            if (!CheckProofOfStake(vtx[1], nBits, hashProofOfStake, &blockFrom))
+            if (!CheckProofOfStake(vtx[1], nBits, hashProofOfStake, &blockFrom, this->nTime))
             {
                 printf("WARNING: ProcessBlock(): check proof-of-stake failed for block %s\n", hash.ToString().c_str());
                 return false; // do not error here as we expect this during initial block download
             }
         }
-
-
-
 
         // Check that the block chain matches the known block chain up to a checkpoint
         if (!Checkpoints::CheckBlock(nHeight, hash))
@@ -4661,3 +4678,15 @@ public:
         mapOrphanTransactions.clear();
     }
 } instance_of_cmaincleanup;
+
+
+
+int GetPrevBlockHeight(uint256 hashPrevBlock)
+{
+    if( mapBlockIndex.find(hashPrevBlock) != mapBlockIndex.end())
+    {
+        CBlockIndex* prevBlock = mapBlockIndex.at(hashPrevBlock);
+        return prevBlock->nHeight;
+    }
+    return -1;
+}

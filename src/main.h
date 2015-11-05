@@ -98,6 +98,7 @@ extern std::map<uint256, CBlockIndex*> mapBlockIndex;
 /** Check whether a block hash satisfies the proof-of-work requirement specified by nBits */
 bool CheckProofOfWork(uint256 hash, unsigned int nBits);
 
+extern int GetPrevBlockHeight(uint256 hashPrevBlock);
 
 
 struct CDiskBlockPos
@@ -1295,6 +1296,8 @@ public:
     unsigned int nTime;
     unsigned int nBits;
     unsigned int nNonce;
+    uint256 TxPrevFromBlockHash;
+
 
     CBlockHeader()
     {
@@ -1310,6 +1313,23 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+        if(nBestHeight + 1 >= CUTOFF_HEIGHT)
+        {
+            if(GetPrevBlockHeight(hashPrevBlock) != -1 && GetPrevBlockHeight(hashPrevBlock) +1 >= CUTOFF_HEIGHT)
+            {
+                READWRITE(TxPrevFromBlockHash);
+            }
+            /// shouldnt use it in this case
+            /// if(GetPrevBlockHeight(hashPrevBlock) != -1 && GetPrevBlockHeight(hashPrevBlock)  +1 < CUTOFF_HEIGHT)
+            /// {
+            ///
+            /// }
+
+            if (GetPrevBlockHeight (hashPrevBlock) == -1)
+            {
+                READWRITE(TxPrevFromBlockHash);
+            }
+        }
     )
 
     void SetNull()
@@ -1320,6 +1340,7 @@ public:
         nTime = 0;
         nBits = 0;
         nNonce = 0;
+        TxPrevFromBlockHash = 0;
     }
 
     bool IsNull() const
@@ -1336,6 +1357,10 @@ public:
     {
         return (int64)nTime;
     }
+    uint256 GetTxPrevFromBlockHash() const
+    {
+        return TxPrevFromBlockHash;
+    }
 
     void UpdateTime(const CBlockIndex* pindexPrev);
 };
@@ -1351,8 +1376,6 @@ public:
 
     // memory only
     mutable std::vector<uint256> vMerkleTree;
-
-    uint256 TxPrevFromBlockHash;
 
     CBlock()
     {
@@ -1414,12 +1437,13 @@ public:
     CBlockHeader GetBlockHeader() const
     {
         CBlockHeader block;
-        block.nVersion       = nVersion;
-        block.hashPrevBlock  = hashPrevBlock;
-        block.hashMerkleRoot = hashMerkleRoot;
-        block.nTime          = nTime;
-        block.nBits          = nBits;
-        block.nNonce         = nNonce;
+        block.nVersion            = nVersion;
+        block.hashPrevBlock       = hashPrevBlock;
+        block.hashMerkleRoot      = hashMerkleRoot;
+        block.nTime               = nTime;
+        block.nBits               = nBits;
+        block.nNonce              = nNonce;
+        block.TxPrevFromBlockHash = TxPrevFromBlockHash;
         return block;
     }
 
@@ -1505,7 +1529,7 @@ public:
         return true;
     }
 
-    bool ReadFromDisk(const CDiskBlockPos &pos)
+    bool ReadFromDisk(const CDiskBlockPos &pos) /// this is broken. need to look at serialize functions (it seems to work on linux though)
     {
         SetNull();
 
@@ -1533,11 +1557,12 @@ public:
 
     void print() const
     {
-        printf("CBlock(hash=%s, input=%s, PoW=%s, ver=%d, hashPrevBlock=%s, hashMerkleRoot=%s, nTime=%u, nBits=%08x, nNonce=%u, vtx=%"PRIszu")\n",
+        printf("CBlock(hash=%s, input=%s, PoW=%s, ver=%d, TxPrevFromBlockHash=%s, hashPrevBlock=%s, hashMerkleRoot=%s, nTime=%u, nBits=%08x, nNonce=%u, vtx=%"PRIszu")\n",
             GetHash().ToString().c_str(),
             HexStr(BEGIN(nVersion),BEGIN(nVersion)+80,false).c_str(),
             GetPoWHash().ToString().c_str(),
             nVersion,
+            TxPrevFromBlockHash.ToString().c_str(),
             hashPrevBlock.ToString().c_str(),
             hashMerkleRoot.ToString().c_str(),
             nTime, nBits, nNonce,
@@ -1817,13 +1842,14 @@ public:
     CBlockHeader GetBlockHeader() const
     {
         CBlockHeader block;
-        block.nVersion       = nVersion;
+        block.nVersion            = nVersion;
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
-        block.hashMerkleRoot = hashMerkleRoot;
-        block.nTime          = nTime;
-        block.nBits          = nBits;
-        block.nNonce         = nNonce;
+        block.hashMerkleRoot      = hashMerkleRoot;
+        block.nTime               = nTime;
+        block.nBits               = nBits;
+        block.nNonce              = nNonce;
+        block.TxPrevFromBlockHash = TxPrevFromBlockHash;
         return block;
     }
 
@@ -2003,7 +2029,6 @@ public:
             READWRITE(prevoutStake);
             READWRITE(nStakeTime);
             READWRITE(hashProofOfStake);
-            READWRITE(TxPrevFromBlockHash);
         }
         else if (fRead)
         {
@@ -2021,6 +2046,14 @@ public:
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(blockHash);
+        if(nBestHeight + 1 >= CUTOFF_HEIGHT)
+        {
+            if(GetPrevBlockHeight(hashPrev) != -1 || GetPrevBlockHeight(hashPrev) +1 >= CUTOFF_HEIGHT)
+            {
+                READWRITE(TxPrevFromBlockHash);
+            }
+        }
+
     )
 
     uint256 GetBlockHash() const
@@ -2032,6 +2065,7 @@ public:
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;
+        block.TxPrevFromBlockHash = TxPrevFromBlockHash;
         return block.GetHash();
     }
 
@@ -2442,7 +2476,7 @@ bool ConnectBestBlock(CValidationState &state);
 CBlockIndex * InsertBlockIndex(uint256 hash);
 /** Verify a signature */
 bool VerifySignature(const CCoins& txFrom, const CTransaction& txTo, unsigned int nIn, unsigned int flags, int nHashType);
-bool VerifySignature(const CWalletTx& txFrom, const CTransaction& txTo, unsigned int nIn, bool fValidatePayToScriptHash, int nHashType);
+bool VerifySignature(const CTransaction &txFrom, const CTransaction& txTo, unsigned int nIn, bool fValidatePayToScriptHash, int nHashType);
 
 int64 GetBlockValue(int nHeight, int64 nFees, uint256 prevHash);
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, bool IsPoW);

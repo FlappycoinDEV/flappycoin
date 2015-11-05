@@ -1050,6 +1050,7 @@ bool AppInit2(boost::thread_group& threadGroup)
         CBlockIndex *pindexRescan = pindexBest;
         if (GetBoolArg("-rescan"))
             pindexRescan = pindexGenesisBlock;
+
         else
         {
             CWalletDB walletdb("wallet.dat");
@@ -1059,6 +1060,7 @@ bool AppInit2(boost::thread_group& threadGroup)
             else
                 pindexRescan = pindexGenesisBlock;
         }
+
         if (pindexBest && pindexBest != pindexRescan)
         {
             uiInterface.InitMessage(_("Rescanning..."));

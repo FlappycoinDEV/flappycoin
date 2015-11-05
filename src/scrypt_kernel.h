@@ -27,11 +27,11 @@ bool ComputeNextStakeModifier(const CBlockIndex* pindexPrev, uint64 & nStakeModi
 
 // Check whether stake kernel meets hash target
 // Sets hashProofOfStake on success return
-bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, uint256 blockFromHash, const CWalletTx txPrev, const COutPoint& prevout, unsigned int nTimeTx, uint256& hashProofOfStake, bool fPrintProofOfStake=false);
+bool CheckStakeKernelHashScrypt(unsigned int nBits, unsigned int blockFromTime, uint256 blockFromHash, const CTransaction& txPrev, const COutPoint& prevout, unsigned int nTimeTx, uint256& hashProofOfStake, bool fPrintProofOfStake=false);
 
 // Check kernel hash target and coinstake signature
 // Sets hashProofOfStake on success return
-bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hashProofOfStake, CBlock* blockFrom);
+bool CheckProofOfStake(const CTransaction &tx, unsigned int nBits, uint256& hashProofOfStake, CBlock* blockFrom, unsigned int curTime);
 
 // Check whether the coinstake timestamp meets protocol
 bool CheckCoinStakeTimestamp(int64 nTimeBlock, int64 nTimeTx);
