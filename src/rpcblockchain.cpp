@@ -193,7 +193,7 @@ Value getblock(const Array& params, bool fHelp)
     {
         unsigned int size = pblockindex->nTx;
         char buffer[33];
-        itoa(size,buffer,10);
+        sprintf(size,buffer,10);
         return buffer;
     }
 
