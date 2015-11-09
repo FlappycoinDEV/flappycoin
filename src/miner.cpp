@@ -200,8 +200,10 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
         for (map<uint256, CTransaction>::iterator mi = mempool.mapTx.begin(); mi != mempool.mapTx.end(); ++mi)
         {
             CTransaction& tx = (*mi).second;
-            if (tx.IsCoinBase() || !tx.IsFinal())
+            if (tx.IsCoinBase() || tx.IsCoinStake() || !tx.IsFinal())
+            {
                 continue;
+            }
 
             COrphan* porphan = NULL;
             double dPriority = 0;
@@ -318,6 +320,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
             {
                 nTxFees = nMinFee;
             }
+
             nTxSigOps += tx.GetP2SHSigOpCount(view);
             if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
                 continue;
@@ -372,6 +375,10 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
             pblocktemplate->vTxFees[0] = -nFees;
         }
 
+
+        /// this was the original fix to see if blocks were staking a negative amount (aka losing coins) but i dont think it is needed
+        /// anymore with all of the new fixes. so disabling.
+        /*
         int numTxs = (int)pblock->vtx.size();
         int i = 0;
         int64 totalIn = 0;
@@ -386,6 +393,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, bool fProofOfStake
         {
             pblock->vtx[1].vout[1].AddValue( (totalIn - totalOut) );
         }
+*/
 
         // Fill in header
         pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
