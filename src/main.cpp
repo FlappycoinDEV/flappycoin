@@ -4420,7 +4420,15 @@ bool ProcessMessages(CNode* pfrom)
         }
 
         if (!fRet)
+        {
             printf("ProcessMessage(%s, %u bytes) FAILED\n", strCommand.c_str(), nMessageSize);
+            // this is a quick fix to getting blocks properly...
+            // for some reason the message fails after the last block has been read, but theres no error when reading the blocks...
+            if(pfrom->nStartingHeight > nBestHeight)
+            {
+                pfrom->PushGetBlocks(pindexBest, uint256(0));
+            }
+        }
 
         break;
     }
